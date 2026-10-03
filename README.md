@@ -1,26 +1,83 @@
-# odf-analyzer
+# ODF Analyzer
 
-Projeto desenvolvido em Python e aplicado na indústria Watanabe para automatizar processos, reduzir tarefas manuais e otimizar o tempo de trabalho.
+Aplicação desenvolvida em Python para automatizar processos relacionados à leitura, análise e organização de relatórios de ODFs (Ordens de Fabricação) em formato PDF do ERP.
 
-O arquivo principal para executar o projeto é o `main.py`, que disponibiliza um menu para selecionar as opções de automação disponíveis, eliminando atividades manuais e reduzindo o tempo gasto em tarefas operacionais.
+O projeto foi desenvolvido e aplicado na **indústria Watanabe**, com o objetivo de reduzir tarefas manuais, otimizar o tempo de trabalho e facilitar atividades relacionadas ao acompanhamento e à organização da produção.
 
 ## Funcionalidades
 
-### **ODFs sem apontamento**
+Ao executar o programa, um menu permite escolher entre as funcionalidades disponíveis.
 
-Saiba exatamente onde agir. Com poucos cliques, é possível identificar automaticamente quais Ordens de Fabricação (ODFs) ainda não foram finalizadas pela produção.
+### ODFs sem apontamento
 
-Essa funcionalidade não está disponível no ERP utilizado na empresa, sendo necessário realizar esse acompanhamento manualmente sem a automação.
+Permite identificar automaticamente quais ODFs possuem apontamento inferior a 100%, facilitando a identificação das ordens que ainda possuem etapas de produção não finalizadas.
 
-### **Reorganizador**
+A funcionalidade também identifica o setor relacionado à ODF e permite visualizar, organizar e exportar os resultados.
 
-Imagine a seguinte situação: o operador do setor de Corte recebe um relatório gerado pelo ERP contendo várias peças com os mesmos códigos, porém distribuídas entre diferentes ODFs (Ordens de Fabricação).
+**Recursos:**
 
-Além disso, essas ODFs podem estar espalhadas ao longo do documento, aumentando o risco de alguma Ordem passar despercebida e a peça correspondente não ser produzida.
+* Leitura de relatórios de ODF em PDF
+* Identificação de ODFs com apontamento inferior a 100%
+* Identificação do setor relacionado à ODF
+* Identificação de ODFs terceirizadas
+* Visualização dos resultados em tabela
+* Exportação dos resultados para Excel
+* Exportação dos resultados para PDF
+* Interface gráfica em modo escuro
 
-Com essa função, o relatório em PDF é reorganizado automaticamente, agrupando as peças que possuem o mesmo código e deixando-as uma abaixo da outra.
+### Reorganizador de ODFs
 
-Dessa forma, o operador consegue visualizar todas as peças semelhantes de maneira organizada, reduzindo a possibilidade de uma ODF passar despercebida e facilitando o planejamento da produção de uma peça.
+Permite reorganizar relatórios de produção gerados pelo ERP.
 
+Em determinados relatórios, peças com o mesmo código podem estar distribuídas entre diferentes ODFs e espalhadas ao longo do documento. Essa organização dificulta a visualização das peças e aumenta o risco de alguma ODF passar despercebida durante a produção (situação ocorrida diversas vezes).
 
+O Reorganizador recebe o relatório em PDF e reorganiza automaticamente as informações, agrupando as peças que possuem o mesmo código e colocando-as próximas umas das outras.
 
+Dessa forma, o operador consegue visualizar peças iguais de maneira mais organizada, facilitando o planejamento e a programação da produção.
+
+## Setores analisados
+
+O programa identifica os seguintes setores:
+
+* Serra
+* Plasma
+* Dobra
+* Furação
+* Usinagem
+* Solda
+* Acabamento
+* Pintura
+* Montagem
+
+## Tecnologias utilizadas
+
+* **Python**
+* **CustomTkinter** — interface gráfica
+* **pdfplumber** — leitura dos arquivos PDF
+* **Pandas** — organização e manipulação dos dados
+* **FPDF** — geração de relatórios em PDF
+* **Tkinter / ttk** — componentes da interface
+
+## Objetivo
+
+O projeto surgiu a partir de necessidades reais de automatização de processos.
+
+Atividades que anteriormente exigiam análise, conferência e organização manual de informações presentes nos relatórios do ERP foram transformadas em processos automatizados.
+
+O ODF Analyzer reúne essas soluções em uma única aplicação, permitindo selecionar a ferramenta necessária diretamente pelo menu principal.
+
+## Estrutura atual
+
+O projeto foi inicialmente desenvolvido em um único arquivo Python, como parte do processo de aprendizado e desenvolvimento da solução.
+Atualmente suas funcionalidades estão dividas em arquivos separados, mostrando evolução e ciência de organização durante desenvolvimento.
+Conforme o projeto evoluir, novas funcionalidades e melhorias na organização do código serão implementadas.
+
+## Status
+
+* **Em desenvolvimento**
+
+O projeto continua sendo aprimorado a partir das necessidades identificadas durante sua utilização.
+
+Este repositório contém apenas o código da aplicação.
+
+Arquivos PDF, dados internos, credenciais, tokens e outras informações confidenciais relacionadas à empresa não fazem parte deste projeto.
