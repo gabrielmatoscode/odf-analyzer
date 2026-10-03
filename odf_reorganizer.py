@@ -1,5 +1,5 @@
 """
-reorganizador.py  -  Motor da funcionalidade "Reorganizar ODFs por Código".
+odf_reorganizer.py  -  Funcionalidade 2: Reorganizar ODFs por Código.
 
 Este arquivo NÃO tem interface gráfica. Ele só:
   1. lê o PDF original do relatório de ODFs (posição exata de cada linha, traço e caixinha);
@@ -8,7 +8,7 @@ Este arquivo NÃO tem interface gráfica. Ele só:
      mesmo cabeçalho, mesmas caixinhas, mesma numeração de páginas);
   4. entrega os dados em formato de tabela (para exportar para Excel).
 
-Como o layout é preservado?
+Como o layout é preservado? -- IA Claude
   - O TEXTO de cada linha é copiado do PDF original (mesma fonte Arial embutida),
     só que colocado numa nova posição vertical.
   - Os TRAÇOS (divisórias, caixinhas, faixa cinza do setor, retângulo do cabeçalho)
@@ -82,15 +82,15 @@ class Relatorio:
 # ----------------------------------------------------------------------------
 _NUM = r"(-?\d*\.?\d+)"
 _SEG = r"1 0 0 1 %s %s cm 0 0 m\n%s %s l\nS" % (_NUM, _NUM, _NUM, _NUM)
-_RE_BLOCO = re.compile(r"q " + _SEG + r"((?: " + _SEG + r")*)\nQ")
+_RE_BLOCO = re.compile(r"q (?:0 0 0 RG \d J \d j \.72 w 10 M \[\] 0 d /GS1 gs 1 i )?" + _SEG + r"((?: " + _SEG + r")*)\nQ")
 _RE_SEG = re.compile(_SEG)
 _RE_RETANGULO = re.compile(r"(?<![\w.])%s %s %s %s re\nS\n" % (_NUM, _NUM, _NUM, _NUM))
-_RE_PREENCHIDO = re.compile(r"((?:%s ){3})rg\n%s %s %s %s re\nf\n" % (_NUM, _NUM, _NUM, _NUM, _NUM))
+_RE_PREENCHIDO = re.compile(r"((?:%s ){3})rg[\n ]%s %s %s %s re\nf\n" % (_NUM, _NUM, _NUM, _NUM, _NUM))
 _RE_ESTADO = re.compile(r"(\d) J (\d) j")
 
 
 def _fmt(v):
-    t = ("%.2f" % v).rstrip("0").rstrip(".")
+    t = ("%.4f" % v).rstrip("0").rstrip(".")
     return "0" if t in ("-0", "") else t
 
 
@@ -127,7 +127,6 @@ def _graficos(page):
                 cx, cy = cx + ddx, cy + ddy
                 segs.append((cx, cy, sdx, sdy))
             for (X, Y, DX, DY) in segs:
-                X, Y, DX, DY = round(X, 2), round(Y, 2), round(DX, 2), round(DY, 2)
                 rect = fitz.Rect(min(X, X + DX), altura - max(Y, Y + DY),
                                  max(X, X + DX), altura - min(Y, Y + DY))
 
