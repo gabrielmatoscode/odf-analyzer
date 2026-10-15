@@ -8,6 +8,9 @@ Este arquivo NÃO tem interface gráfica. Ele só:
      mesmo cabeçalho, mesmas caixinhas, mesma numeração de páginas);
   4. entrega os dados em formato de tabela (para exportar para Excel).
 
+Também é usado pela Funcionalidade 1 (odfs_not_reported.py) para gerar o PDF só com as
+ODFs sem apontamento, no mesmo layout do original (função sem_apontamento()).
+
 Como o layout é preservado? -- IA Claude
   - O TEXTO de cada linha é copiado do PDF original (mesma fonte Arial embutida),
     só que colocado numa nova posição vertical.
@@ -331,6 +334,30 @@ def reorganizar(rel, agrupar=True):
             for s in rel.secoes]
 
 
+
+def percentual(linha):
+    """Converte o campo '% Prod.' (ex.: '26,75%') em número; None se não for válido."""
+    txt = linha.campos["prod"].replace("%", "").replace(",", ".").strip()
+    try:
+        return float(txt)
+    except ValueError:
+        return None
+
+
+def sem_apontamento(rel, agrupar=True, limite=100.0):
+    """Mesma estrutura de reorganizar(), mas só com as ODFs ainda não 100% produzidas
+    (0 <= % < limite - o mesmo critério do programa original). Setores que ficam
+    sem nenhuma ODF são omitidos. Cada setor mantém seu título e seu '% concluído'."""
+    saida = []
+    for s in rel.secoes:
+        linhas = [l for l in s.linhas
+                  if percentual(l) is not None and 0 <= percentual(l) < limite]
+        if not linhas:
+            continue
+        saida.append((s, agrupar_por_codigo(linhas) if agrupar else linhas))
+    return saida
+
+
 def tabela(rel, estrutura=None):
     """Linhas em formato de tabela (para tela e Excel). Marca códigos repetidos."""
     estrutura = estrutura or reorganizar(rel)
@@ -413,6 +440,24 @@ def gerar_pdf(rel, estrutura, saida):
     texto = _texto_apenas(rel.caminho)
     out = fitz.open()
     estado = {"pg": None, "n": 0, "gfx": []}
+    recortes = {}
+
+    def recorte(pno, y0, y1):
+        """Página-fonte que contém SÓ o texto da faixa y0..y1 (o resto é apagado de verdade,
+        não apenas escondido) - assim o PDF novo não carrega texto duplicado."""
+        chave = (pno, round(y0, 2), round(y1, 2))
+        if chave not in recortes:
+            texto.fullcopy_page(pno, -1)
+            idx = texto.page_count - 1
+            pg = texto[idx]
+            if y0 > 0:
+                pg.add_redact_annot(fitz.Rect(0, 0, LARGURA_PAGINA, y0), fill=False)
+            pg.add_redact_annot(fitz.Rect(0, y1, LARGURA_PAGINA, ALTURA_PAGINA), fill=False)
+            pg.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                                graphics=fitz.PDF_REDACT_LINE_ART_NONE,
+                                text=fitz.PDF_REDACT_TEXT_REMOVE)
+            recortes[chave] = idx
+        return recortes[chave]
 
     def fechar_pagina():
         """Grava os traços acumulados como 1 bloco, POR BAIXO do texto da página."""
@@ -431,12 +476,12 @@ def gerar_pdf(rel, estrutura, saida):
 
     def rodape(page, n):
         pno = n - 1
-        if pno < len(texto):
+        if pno < rel.n_paginas_origem:
             ws = [w for w in texto[pno].get_text("words") if w[1] > 812 and w[0] > 500]
             if ws:
                 r = fitz.Rect(min(w[0] for w in ws) - 1, min(w[1] for w in ws) - 1,
                               max(w[2] for w in ws) + 1, max(w[3] for w in ws) + 1)
-                page.show_pdf_page(r, texto, pno, clip=r, overlay=True)
+                page.show_pdf_page(r, texto, recorte(pno, r.y0, r.y1), clip=r, overlay=True)
                 return
         page.insert_text((545.9, 822.3), str(n), fontname="helv", fontsize=10)
 
@@ -449,8 +494,8 @@ def gerar_pdf(rel, estrutura, saida):
 
     def colar_texto(page, pno, y0, y1, dy):
         clip = fitz.Rect(0, y0, LARGURA_PAGINA, y1)
-        page.show_pdf_page(fitz.Rect(0, y0 + dy, LARGURA_PAGINA, y1 + dy), texto, pno,
-                           clip=clip, overlay=True)
+        page.show_pdf_page(fitz.Rect(0, y0 + dy, LARGURA_PAGINA, y1 + dy), texto,
+                           recorte(pno, y0, y1), clip=clip, overlay=True)
 
     # ---- página 1 + cabeçalho (idêntico ao original, uma única vez)
     page = nova_pagina()
@@ -465,7 +510,7 @@ def gerar_pdf(rel, estrutura, saida):
         if not linhas:
             continue
         h1 = linhas[0].altura
-        y_faixa = secao.y0 if primeiro else round(y + secao.gap, 2)
+        y_faixa = rel.secoes[0].y0 if primeiro else round(y + secao.gap, 2)
         if y_faixa + secao.altura_titulo + h1 > limite:
             page = nova_pagina()
             y_faixa = TOPO_PAGINAS_SEGUINTES

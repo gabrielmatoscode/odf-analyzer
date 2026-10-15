@@ -1,54 +1,29 @@
 """
-odfs_not_reported.py - Funcionalidade 1: ODFs sem apontamento (lógica .
+odfs_not_reported.py - Funcionalidade 1: ODFs sem apontamento.
 
-- Extrai as ODFs do PDF da Watanabe onde ainda não foi realizada a produção da peça
-- Não tem interface gráfica
+- Extrai do PDF da Watanabe as ODFs onde ainda não foi realizada a produção da peça (% Prod. < 100%)
+- Devolve os dados (tela / Excel) e um PDF com o MESMO layout do original (cabeçalho, fontes,
+  espaçamentos, caixinhas), contendo apenas essas ODFs
+- Não tem interface gráfica. A leitura e a geração do PDF são feitas pelo odf_reorganizer.py
 """
-import pdfplumber as pdftool
+import odf_reorganizer
 
-SETORES = {
-    "1": "SERRA", "2": "PLASMA", "3": "DOBRA", "4": "FURAÇÃO", "5": "USINAGEM",
-    "6": "SOLDA", "7": "ACABAMENTO", "8": "PINTURA", "9": "MONTAGEM",
-}
+
+def carregar(caminho, agrupar=True):
+    """Lê o PDF e devolve (relatorio, estrutura) só com as ODFs sem apontamento.
+    agrupar=True  -> códigos iguais ficam juntos (como na funcionalidade 2)
+    agrupar=False -> mantém a ordem do PDF original."""
+    rel = odf_reorganizer.ler_relatorio(caminho)
+    return rel, odf_reorganizer.sem_apontamento(rel, agrupar=agrupar)
 
 
 def analisar(filepath):
-    """Retorna lista de tuplas (odf, setor, porcentagem) das ODFs com % < 100."""
-    odf_sem_apontamento = []
-    setor_atual = None
-
-    with pdftool.open(filepath) as pdf:
-        for paginas in pdf.pages:
-            data = paginas.extract_text()
-            if not data:
-                continue
-
-            for line in data.split("\n"):
-                partes = line.strip().split()
-                if not partes:                     # (novo) linha vazia não derruba o programa
-                    continue
-
-                if len(partes) >= 3 and partes[0] in SETORES and partes[1] == "-":
-                    setor_atual = SETORES[partes[0]]
-                    continue
-
-                ultima = partes[-1]
-                if ultima.upper() in ("NECESSIDADE", "PRODUZIDO"):
-                    continue
-                if not ultima.endswith("%"):
-                    continue
-
-                str_para_valor = ultima.replace("%", "").replace(",", ".")
-                if not str_para_valor.replace(".", "", 1).isdigit():
-                    continue
-
-                if not (0 <= float(str_para_valor) < 100):
-                    continue
-
-                odf = partes[0]
-                if not odf.isdigit():
-                    continue
-
-                odf_sem_apontamento.append((odf, setor_atual, ultima))
-
-    return odf_sem_apontamento
+    """Mesmo formato da versão antiga: lista de tuplas (odf, setor, porcentagem) das ODFs com % < 100."""
+    _, estrutura = carregar(filepath, agrupar=False)
+    saida = []
+    for secao, linhas in estrutura:
+        titulo = secao.titulo.strip()
+        setor = None if titulo in ("-", "") else titulo.split("-", 1)[1].strip()
+        for l in linhas:
+            saida.append((l.campos["odf"], setor, l.campos["prod"]))
+    return saida

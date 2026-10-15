@@ -2,13 +2,12 @@
 main.py - ARQUIVO PRINCIPAL - menu do programa 
 
 Mostra um menu inicial com as funcionalidades:
-    1) ODFs sem apontamento        ----> odf_not_reported.py
+    1) ODFs sem apontamento        ----> odfs_not_reported.py
     2) Reorganizar ODFs por código ----> odf_reorganizer.py
 
-Instalações necessárias no Terminal:  pip install customtkinter pdfplumber pandas openpyxl fpdf2 pymupdf
+Instalações necessárias no Terminal (ctrl + "):  pip install customtkinter pandas openpyxl pymupdf
 """
 import customtkinter as ctk
-import fpdf
 import pandas as pd
 from tkinter import filedialog, messagebox, ttk
 
@@ -81,13 +80,27 @@ def exportar_excel(dados, colunas):
 # Tela 1 - ODFs sem apontamento
 # ============================================================================
 class TelaSemApontamento(ctk.CTkFrame):
+    COLS = ("Setor", "ODF", "Código", "Descrição", "Máquina", "Qtde", "Saldo", "%")
+
     def __init__(self, master, voltar):
         super().__init__(master)
+        self.rel = None
+        self.estrutura = None
+        self.caminho = None
         topo(self, "ODFs sem apontamento", voltar)
 
         ctk.CTkButton(self, text="Buscar PDF e executar análise", command=self.executar,
                       text_color="#000000", fg_color=COR,
-                      font=("Segoe UI", 26, "bold")).pack(pady=15)
+                      font=("Segoe UI", 26, "bold")).pack(pady=(15, 5))
+
+        # ligado: códigos iguais ficam juntos | desligado: mantém a ordem do PDF original
+        self.agrupar = ctk.CTkCheckBox(self, text="Agrupar códigos iguais (ODFs sequenciais)",
+                                       font=("Segoe UI", 14), command=self.reprocessar)
+        self.agrupar.select()
+        self.agrupar.pack(pady=5)
+
+        self.info = ctk.CTkLabel(self, text="Nenhum arquivo carregado.", font=("Segoe UI", 14))
+        self.info.pack()
 
         barra = ctk.CTkFrame(self)
         barra.pack(pady=8)
@@ -96,32 +109,50 @@ class TelaSemApontamento(ctk.CTkFrame):
         ctk.CTkButton(barra, text="📄 Exportar PDF", command=self.pdf, width=180,
                       fg_color=VERMELHO, font=("Segoe UI", 16, "bold")).pack(side="left", padx=10)
 
-        self.tabela = Tabela(self, ("ODF", "SETOR", "%"), (100, 250, 100))
-        self.tabela.pack(padx=10, pady=20, fill="both", expand=True)
+        self.tabela = Tabela(self, self.COLS, (110, 70, 85, 330, 100, 55, 55, 70))
+        self.tabela.pack(padx=10, pady=15, fill="both", expand=True)
+        ctk.CTkLabel(self, text="Linhas em amarelo = código repetido (agrupado).",
+                     font=("Segoe UI", 12)).pack(pady=(0, 8))
 
     def executar(self):
         caminho = pedir_pdf()
         if not caminho:
             messagebox.showwarning("Aviso", "Nenhum arquivo foi selecionado.")
             return
+        self.caminho = caminho
+        self.processar()
+
+    def reprocessar(self):
+        """Ao marcar/desmarcar a caixinha, refaz a análise do mesmo PDF."""
+        if self.caminho:
+            self.processar()
+
+    def processar(self):
         try:
-            itens = odfs_not_reported.analisar(caminho)
+            self.rel, self.estrutura = odfs_not_reported.carregar(
+                self.caminho, agrupar=bool(self.agrupar.get()))
+            dados = odf_reorganizer.tabela(self.rel, self.estrutura)
+            res = odf_reorganizer.resumo(self.rel, self.estrutura)
         except Exception as e:
+            self.rel = self.estrutura = None
             messagebox.showerror("Erro", f"Não consegui ler o PDF:\n{e}")
             return
         self.tabela.limpar()
-        if itens:
-            for odf, setor, pct in itens:
-                self.tabela.inserir((odf, setor if setor is not None else "ODF terceirizada", pct))
-        else:
-            self.tabela.inserir(("", "Nenhuma ODF encontrada", ""))
+        if not dados:
+            self.tabela.inserir(("", "Nenhuma ODF encontrada", "", "", "", "", "", ""))
+        for d in dados:
+            self.tabela.inserir((d["Setor"], d["ODF"], d["Código"], d["Descrição"], d["Máquina"],
+                                 d["Qtde Ped."], d["Saldo"], d["% Prod."]),
+                                "repetido" if d["Repetido"] else "")
+        self.info.configure(text=f"{res['setores']} setor(es) • {res['linhas']} linhas • "
+                                 f"{res['codigos_repetidos']} código(s) repetido(s) agrupado(s)")
 
     def excel(self):
-        exportar_excel(self.tabela.linhas(), ["ODF", "SETOR", "%"])
+        exportar_excel(self.tabela.linhas(), list(self.COLS))
 
     def pdf(self):
-        dados = self.tabela.linhas()
-        if not dados:
+        # PDF com o MESMO layout do original, só com as ODFs sem apontamento
+        if not self.rel or not any(l for _, l in self.estrutura):
             messagebox.showwarning("Aviso", "Não há nada para exportar")
             return
         caminho = filedialog.asksaveasfilename(defaultextension=".pdf",
@@ -129,23 +160,12 @@ class TelaSemApontamento(ctk.CTkFrame):
                                                title="Salvar como PDF")
         if not caminho:
             return
-        doc = fpdf.FPDF()
-        doc.add_page()
-        doc.set_font("Arial", "B", 16)
-        doc.cell(0, 10, "Relatório de ODFs", ln=True, align="C")
-        doc.ln(10)
-        doc.set_font("Arial", "B", 12)
-        larguras = [30, 120, 30]
-        for i, c in enumerate(["ODF", "SETOR", "%"]):
-            doc.cell(larguras[i], 10, c, border=1, align="C")
-        doc.ln()
-        doc.set_font("Arial", size=10)
-        for linha in dados:
-            for i, v in enumerate(linha):
-                doc.cell(larguras[i], 7, str(v), border=1, align="C")
-            doc.ln()
-        doc.output(caminho)
-        messagebox.showinfo("Sucesso", f"PDF salvo!\n{caminho}")
+        try:
+            n = odf_reorganizer.gerar_pdf(self.rel, self.estrutura, caminho)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não consegui gerar o PDF:\n{e}")
+            return
+        messagebox.showinfo("Sucesso", f"PDF salvo ({n} páginas)!\n{caminho}")
 
 
 # ============================================================================
@@ -239,10 +259,10 @@ class Menu(ctk.CTkFrame): # Classe da função do menu principal do programa #
                      font=("Arial Black", 60, "bold")).pack(pady=(60, 5))
         ctk.CTkLabel(self, text="Selecione uma das opções a seguir",
                      font=("Segoe UI", 20)).pack(pady=(0, 40))
-        for texto, chave in (("🔎  ODFs sem apontamento", "sem"),
-                             ("🗂️  Reorganizar ODFs por código", "reorg")):
+        for texto, chave in (("ODFs sem apontamento", "sem"),
+                             ("Reorganizar ODFs por código", "reorg")):
             ctk.CTkButton(self, text=texto, height=70, width=420, fg_color=COR,
-                          text_color="#000000", font=("Segoe UI", 22),
+                          text_color="#000000", font=("Arial", 22, "bold"),
                           command=lambda c=chave: abrir(c)).pack(pady=12)
 
 
